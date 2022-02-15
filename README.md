@@ -6,3 +6,5 @@ This repo contains the most crucial smart contracts that require auditing ASAP.
 It is important to note that these two contracts will be mapped and bridge-able by Polygon's PoS bridge. See their documentation for more info: https://docs.polygon.technology/docs/develop/ethereum-polygon/pos/getting-started. WE ARE NOT building our own custom bridge.
 
 Additionally, some of these files may be importing non-existent files - these contracts were pulled from our main repository where all other files live. This repo is just to give an idea of what we'd like to be in scope for an audit.
+
+Unit tests for these contracts exist, but are not included here. There is also a lack of documentation, but we'd be happy to provide whatever is necessary.
