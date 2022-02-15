@@ -1,8 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
 
-import "../common/AccessControlMixinUpgradeable.sol";
 import "./ERC721AUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -23,7 +23,7 @@ contract FarmsOfGalileo is
     PausableUpgradeable,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable,
-    AccessControlMixin
+    AccessControlUpgradeable
 {
     event GalileanMinted(uint256 indexed tokenId);
 
@@ -49,7 +49,7 @@ contract FarmsOfGalileo is
         __ERC721A_init("Farms of Galileo", "FoG");
         __Ownable_init();
         __Pausable_init();
-        __AccessControlMixin_init("FarmsOfGalileo");
+        __AccessControl_init();
 
         _pause();
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -95,10 +95,8 @@ contract FarmsOfGalileo is
         _safeMint(_msgSender(), amount);
     }
 
-    function setTokenMetadata(uint256 tokenId, bytes calldata data)
-        external
-        only(PREDICATE_ROLE)
-    {
+    function setTokenMetadata(uint256 tokenId, bytes calldata data) external {
+        require(hasRole(PREDICATE_ROLE, _msgSender()), "Insufficient permissions");
         string memory uri = abi.decode(data, (string));
         setTokenURI(tokenId, uri);
     }
