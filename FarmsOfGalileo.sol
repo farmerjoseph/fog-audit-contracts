@@ -39,6 +39,7 @@ contract FarmsOfGalileo is
 
     uint256 public maxTokens;
     mapping(uint256 => string) private tokenURIs;
+    string private _baseTokenURI;
 
     modifier onlyEOA() {
         if (tx.origin != _msgSender()) revert SenderNotAnEOA();
@@ -96,7 +97,10 @@ contract FarmsOfGalileo is
     }
 
     function setTokenMetadata(uint256 tokenId, bytes calldata data) external {
-        require(hasRole(PREDICATE_ROLE, _msgSender()), "Insufficient permissions");
+        require(
+            hasRole(PREDICATE_ROLE, _msgSender()),
+            "Insufficient permissions"
+        );
         string memory uri = abi.decode(data, (string));
         setTokenURI(tokenId, uri);
     }
@@ -111,17 +115,21 @@ contract FarmsOfGalileo is
         override
         returns (string memory)
     {
-        require(
-            _exists(tokenId),
-            "ERC721Metadata: URI query for nonexistent token"
-        );
-        
+        require(_exists(tokenId), "URI query for nonexistent token");
+
         if (bytes(tokenURIs[tokenId]).length == 0) {
-            // TODO: update placeholder with real URI when ready
-            return "";
+            return super.tokenURI(tokenId);
         } else {
             return tokenURIs[tokenId];
         }
+    }
+
+    function _baseURI() internal view virtual override returns (string memory) {
+        return _baseTokenURI;
+    }
+
+    function setBaseURI(string calldata baseURI) external onlyOwner {
+        _baseTokenURI = baseURI;
     }
 
     function withdraw() external onlyOwner {

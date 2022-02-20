@@ -25,7 +25,7 @@ contract FarmingGalilean is
         bytes metaData
     );
 
-    uint16 constant GEN_ZERO_CUTOFF_ID = 10000;
+    uint16 constant GEN_ZERO_CUTOFF_ID = 9890;
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
 
     IFarmingGalileanRandomizer randomizer;
@@ -58,26 +58,26 @@ contract FarmingGalilean is
         // deposit single
         if (depositData.length == 32) {
             uint256 tokenId = abi.decode(depositData, (uint256));
-            requestRandomnessOrMint(user, tokenId);
+            mintAndInitialize(user, tokenId);
             // deposit batch
         } else {
             uint256[] memory tokenIds = abi.decode(depositData, (uint256[]));
             uint256 length = tokenIds.length;
             for (uint256 i; i < length; i++) {
-                requestRandomnessOrMint(user, tokenIds[i]);
+                mintAndInitialize(user, tokenIds[i]);
             }
         }
     }
 
     /**
      * @notice called when user wants to withdraw token back to root chain with arbitrary metadata
-     * @dev Should handle withraw by burning user's token.
+     * @dev Should handle withdraw by burning user's token.
      *
      * This transaction will be verified when exiting on root chain
      *
      * @param tokenId tokenId to withdraw
      */
-    function withdrawWithMetadata(uint256 tokenId) external {
+    function withdrawWithMetadata(uint256 tokenId) external whenNotPaused {
         require(_msgSender() == ownerOf(tokenId), "Not token owner");
         require(tokenId < GEN_ZERO_CUTOFF_ID, "Only gen zero can bridge");
 
@@ -88,18 +88,14 @@ contract FarmingGalilean is
             tokenId,
             abi.encode(tokenURI(tokenId))
         );
-
+        
+        referrals.wipeReferralsFor(_msgSender());
         _burn(tokenId);
     }
 
-    function requestRandomnessOrMint(address user, uint256 tokenId) internal {
-        // generate a new random Galilean if it has never existed on L2 before
-        if (traits.getTraitsForToken(tokenId).seed == 0) {
-            randomizer.generateRandomGalilean(tokenId, user);
-        } else {
-            // token already has existed on L2, so reuse traits
-            _mint(user, tokenId);
-        }
+    function mintAndInitialize(address user, uint256 tokenId) internal {
+        referrals.initializeUser(user);
+        _mint(user, tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -120,7 +116,7 @@ contract FarmingGalilean is
         address recipient,
         uint256 tokenId,
         uint256 randomNumber
-    ) external override onlyGameContract whenNotPaused {
+    ) external override onlyGameContract {
         traits.generateGalileanForToken(tokenId, randomNumber);
         _mint(recipient, tokenId);
         emit GalileanMinted(tokenId);
@@ -136,7 +132,7 @@ contract FarmingGalilean is
             _exists(tokenId),
             "ERC721Metadata: URI query for nonexistent token"
         );
-        
+
         return traits.tokenURI(tokenId);
     }
 
@@ -160,11 +156,12 @@ contract FarmingGalilean is
         address to,
         uint256 tokenId
     ) internal virtual override {
-        super._beforeTokenTransfer(from, to, tokenId);
         // only run referral logic if it's a transfer between users, not mint or burn
         if (from != address(0x0) && to != address(0x0)) {
             referrals.handleTransfer(from, to, tokenId);
         }
+
+        super._beforeTokenTransfer(from, to, tokenId);
     }
 
     function setContracts(
