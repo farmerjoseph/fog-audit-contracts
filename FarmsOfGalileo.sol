@@ -11,10 +11,9 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 
 error UserNotOnWhitelistWithSpecifiedAmount();
 error SenderNotAnEOA();
-error WhitelistMintingPeriodEnded();
 error MaxTokensReachedForAddress();
 error InvalidPaymentAmount();
-error NoTokensLeft();
+error NotEnoughTokensLeft();
 error NonExistentToken();
 
 contract FarmsOfGalileo is
@@ -28,12 +27,11 @@ contract FarmsOfGalileo is
     event GalileanMinted(uint256 indexed tokenId);
 
     bytes32 public constant PREDICATE_ROLE = keccak256("PREDICATE_ROLE");
-    uint8 constant MAX_NUMBER_OF_MINTS_PER_ADDRESS = 2;
+    uint8 constant MAX_NUMBER_OF_MINTS_PER_ADDRESS = 10;
 
     uint256 public wlPrice;
     uint256 public publicPrice;
     bool public publicSaleStarted;
-    uint256 public wlEndTime;
 
     bytes32 merkleRoot;
 
@@ -82,18 +80,24 @@ contract FarmsOfGalileo is
         onlyEOA
         nonReentrant
     {
-        if (block.timestamp > wlEndTime) revert WhitelistMintingPeriodEnded();
-        bytes32 leaf = keccak256(abi.encodePacked(_msgSender(), amount));
-        if (!MerkleProofUpgradeable.verify(merkleProof, merkleRoot, leaf))
-            revert UserNotOnWhitelistWithSpecifiedAmount();
-        // since the Merkle Tree stores the amount a user can mint, minting mustn't be
-        // broken up into multiple calls for the same user
-        if (_numberMinted(_msgSender()) + amount > amount)
-            revert MaxTokensReachedForAddress();
+        if (publicSaleStarted) {
+            if (_numberMinted(_msgSender()) + amount > MAX_NUMBER_OF_MINTS_PER_ADDRESS)
+                revert MaxTokensReachedForAddress();
+        } else {
+            // check for whitelist
+            bytes32 leaf = keccak256(abi.encodePacked(_msgSender(), amount));
+            if (!MerkleProofUpgradeable.verify(merkleProof, merkleRoot, leaf))
+                revert UserNotOnWhitelistWithSpecifiedAmount();
+            // since the Merkle Tree stores the amount a user can mint, minting mustn't be
+            // broken up into multiple calls for the same user
+            if (_numberMinted(_msgSender()) + amount > amount)
+                revert MaxTokensReachedForAddress();
+        }
+        
         if (msg.value != amount * (publicSaleStarted ? publicPrice : wlPrice))
             revert InvalidPaymentAmount();
 
-        if (totalSupply() + amount > maxTokens) revert NoTokensLeft();
+        if (totalSupply() + amount > maxTokens) revert NotEnoughTokensLeft();
 
         _safeMint(_msgSender(), amount);
     }
@@ -144,10 +148,6 @@ contract FarmsOfGalileo is
 
     function setMerkleRoot(bytes32 _merkleRoot) external onlyOwner {
         merkleRoot = _merkleRoot;
-    }
-
-    function setWLEndTime(uint256 _wlEndTime) external onlyOwner {
-        wlEndTime = _wlEndTime;
     }
 
     function setPublicSaleStarted(bool _publicSaleStarted) external onlyOwner {
