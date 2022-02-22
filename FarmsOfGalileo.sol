@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-error UserNotOnWhitelist();
+error UserNotOnWhitelistWithSpecifiedAmount();
 error SenderNotAnEOA();
 error WhitelistMintingPeriodEnded();
 error MaxTokensReachedForAddress();
@@ -38,6 +38,7 @@ contract FarmsOfGalileo is
     bytes32 merkleRoot;
 
     uint256 public maxTokens;
+    mapping(address => uint8) private userToMintCount;
     mapping(uint256 => string) private tokenURIs;
     string private _baseTokenURI;
 
@@ -82,15 +83,16 @@ contract FarmsOfGalileo is
         nonReentrant
     {
         if (block.timestamp > wlEndTime) revert WhitelistMintingPeriodEnded();
-        bytes32 leaf = keccak256(abi.encodePacked(_msgSender()));
+        bytes32 leaf = keccak256(abi.encodePacked(_msgSender(), amount));
         if (!MerkleProofUpgradeable.verify(merkleProof, merkleRoot, leaf))
-            revert UserNotOnWhitelist();
-        if (
-            _numberMinted(_msgSender()) + amount >
-            MAX_NUMBER_OF_MINTS_PER_ADDRESS
-        ) revert MaxTokensReachedForAddress();
+            revert UserNotOnWhitelistWithSpecifiedAmount();
+        // since the Merkle Tree stores the amount a user can mint, minting mustn't be
+        // broken up into multiple calls for the same user
+        if (_numberMinted(_msgSender()) + amount > amount)
+            revert MaxTokensReachedForAddress();
         if (msg.value != amount * (publicSaleStarted ? publicPrice : wlPrice))
             revert InvalidPaymentAmount();
+
         if (totalSupply() + amount > maxTokens) revert NoTokensLeft();
 
         _safeMint(_msgSender(), amount);
@@ -130,6 +132,10 @@ contract FarmsOfGalileo is
 
     function setBaseURI(string calldata baseURI) external onlyOwner {
         _baseTokenURI = baseURI;
+    }
+
+    function numberMinted(address owner) public view returns (uint256) {
+        return _numberMinted(owner);
     }
 
     function withdraw() external onlyOwner {
